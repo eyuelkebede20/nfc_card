@@ -27,26 +27,38 @@ export default function NfcWebScanner() {
       // Starts the physical hardware loop (triggers the browser permission prompt)
       await ndef.scan();
       setStatus("Approach the tag to the back of your Samsung device...");
-
       ndef.onreadingerror = () => {
         setStatus("Read error. Try aligning the middle of your phone with the tag.");
       };
 
       // 3. Destructure with the *correctly spelled* Type Definition
       ndef.onreading = ({ serialNumber, message }: NDEFReadingEvent) => {
-        let textRecord = "";
+        // We will store all discovered data in an array
+        const extractedRecords = [];
 
-        // Parse standard NDEF text data if available
-        for (const record of message.records) {
+        // Loop through every record in the message
+        message.records.forEach((record, index) => {
+          let data = "";
+
+          // Handle different record types
           if (record.recordType === "text") {
-            const textDecoder = new TextDecoder(record.encoding);
-            textRecord = textDecoder.decode(record.data);
+            const textDecoder = new TextDecoder(record.encoding || "utf-8");
+            data = textDecoder.decode(record.data);
+          } else if (record.recordType === "url") {
+            const textDecoder = new TextDecoder("utf-8");
+            data = textDecoder.decode(record.data);
+          } else {
+            // For unknown types, just show it's binary data
+            data = `Binary data (${record.data?.byteLength} bytes)`;
           }
-        }
+
+          extractedRecords.push(`Record ${index + 1} (${record.recordType}): ${data}`);
+        });
 
         setTagData({
-          uid: serialNumber || "Unknown UID", // Hardware Serial Number / UID
-          record: textRecord || "No text record found",
+          uid: serialNumber || "Unknown UID",
+          // Join all records into a single string for display
+          record: extractedRecords.length > 0 ? extractedRecords.join(" | ") : "Empty tag",
         });
         setStatus("Tag scanned successfully!");
       };
