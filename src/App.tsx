@@ -1,0 +1,97 @@
+import React, { useState, useEffect } from "react";
+
+export default function NfcWebScanner() {
+  const [isSupported, setIsSupported] = useState(false);
+  const [status, setStatus] = useState("Idle");
+  const [tagData, setTagData] = useState({ uid: "", record: "" });
+
+  // 1. Check if the browser supports Web NFC on mount
+  useEffect(() => {
+    if ("NDEFReader" in window) {
+      setIsSupported(true);
+    } else {
+      setIsSupported(false);
+      setStatus("Web NFC is not supported on this browser/OS. Please use Chrome on Android.");
+    }
+  }, []);
+
+  const handleScan = async () => {
+    if (!isSupported) return;
+
+    setStatus("Initializing sensor...");
+    try {
+      // 2. Instantiate the native browser reader
+      const ndef = new NDEFReader();
+
+      // Starts the physical hardware loop (triggers the browser permission prompt)
+      await ndef.scan();
+      setStatus("Approach the tag to the back of your Samsung device...");
+
+      ndef.onreadingerror = () => {
+        setStatus("Read error. Try aligning the middle of your phone with the tag.");
+      };
+
+      ndef.onreading = ({ serialNumber, message }) => {
+        let textRecord = "";
+
+        // Parse standard NDEF text data if available
+        for (const record of message.records) {
+          if (record.recordType === "text") {
+            const textDecoder = new TextDecoder(record.encoding);
+            textRecord = textDecoder.decode(record.data);
+          }
+        }
+
+        setTagData({
+          uid: serialNumber, // Hardware Serial Number / UID
+          record: textRecord || "No text record found",
+        });
+        setStatus("Tag scanned successfully!");
+      };
+    } catch (error) {
+      console.error(error);
+      if (error.name === "NotAllowedError") {
+        setStatus("Permission denied. Web NFC requires permission to run.");
+      } else {
+        setStatus(`Error: ${error.message}`);
+      }
+    }
+  };
+
+  return (
+    <div style={{ padding: "20px", fontFamily: "sans-serif", textAlign: "center" }}>
+      <h2>Samsung Mobile Web NFC Reader</h2>
+      <p>
+        <strong>Status:</strong> {status}
+      </p>
+
+      {isSupported && (
+        <button
+          onClick={handleScan}
+          style={{
+            padding: "12px 24px",
+            fontSize: "16px",
+            backgroundColor: "#0377fc",
+            color: "#fff",
+            border: "none",
+            borderRadius: "5px",
+            cursor: "pointer",
+          }}
+        >
+          Activate NFC Scanner
+        </button>
+      )}
+
+      {tagData.uid && (
+        <div style={{ marginTop: "20px", textAlign: "left", display: "inline-block", border: "1px solid #ccc", padding: "15px" }}>
+          <p>
+            <strong>Tag UID (Serial):</strong> {tagData.uid}
+          </p>
+          <p>
+            <strong>Payload Text:</strong> {tagData.record}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
