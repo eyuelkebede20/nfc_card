@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+/// <reference types="w3c-web-nfc" />
+import { useState, useEffect } from "react";
 
 export default function NfcWebScanner() {
   const [isSupported, setIsSupported] = useState(false);
@@ -31,7 +32,8 @@ export default function NfcWebScanner() {
         setStatus("Read error. Try aligning the middle of your phone with the tag.");
       };
 
-      ndef.onreading = ({ serialNumber, message }) => {
+      // 3. Destructure with the *correctly spelled* Type Definition
+      ndef.onreading = ({ serialNumber, message }: NDEFReadingEvent) => {
         let textRecord = "";
 
         // Parse standard NDEF text data if available
@@ -43,17 +45,24 @@ export default function NfcWebScanner() {
         }
 
         setTagData({
-          uid: serialNumber, // Hardware Serial Number / UID
+          uid: serialNumber || "Unknown UID", // Hardware Serial Number / UID
           record: textRecord || "No text record found",
         });
         setStatus("Tag scanned successfully!");
       };
     } catch (error) {
       console.error(error);
-      if (error.name === "NotAllowedError") {
-        setStatus("Permission denied. Web NFC requires permission to run.");
+
+      // Type guard: check if error is actually an Error object to fix TS18046
+      if (error instanceof Error) {
+        if (error.name === "NotAllowedError") {
+          setStatus("Permission denied. Web NFC requires permission to run.");
+        } else {
+          setStatus(`Error: ${error.message}`);
+        }
       } else {
-        setStatus(`Error: ${error.message}`);
+        // Fallback for weird edge cases where something else was thrown
+        setStatus("An unknown error occurred.");
       }
     }
   };
